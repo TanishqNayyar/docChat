@@ -3,6 +3,7 @@ import axios from 'axios'
 
 const API_URL = import.meta.env.VITE_API_URL
 
+
 function Message({ msg }) {
   const isUser = msg.role === 'user'
 
@@ -139,15 +140,31 @@ export default function ChatArea({ activeDoc }) {
 
     if (!q || !activeDoc || loading) return
 
-    setMessages(prev => [...prev, { role: 'user', content: q }])
+    setMessages(prev => [
+      ...prev,
+      {
+        role: 'user',
+        content: q,
+      },
+    ])
+
     setInput('')
     setLoading(true)
 
     try {
-      const { data } = await axios.post(`${API_URL}/api/chat`, {
-        documentId: activeDoc._id,
-        question: q,
-      })
+      const ownerId = localStorage.getItem('docchat-owner-id')
+      const { data } = await axios.post(
+        `${API_URL}/api/chat`,
+        {
+          documentId: activeDoc._id,
+          question: q,
+        },
+        {
+          headers: {
+            'x-owner-id': ownerId,
+          },
+        }
+      )
 
       setMessages(prev => [
         ...prev,
@@ -277,6 +294,7 @@ export default function ChatArea({ activeDoc }) {
               opacity: 0;
               transform: translateY(6px);
             }
+
             to {
               opacity: 1;
               transform: translateY(0);
@@ -287,6 +305,7 @@ export default function ChatArea({ activeDoc }) {
             0%, 60%, 100% {
               opacity: 0.3;
             }
+
             30% {
               opacity: 1;
             }

@@ -9,6 +9,13 @@ const chunkSchema = new mongoose.Schema({
 const documentSchema = new mongoose.Schema({
   filename: { type: String, required: true },
   originalName: { type: String, required: true },
+
+  ownerId: {
+    type: String,
+    required: true,
+    index: true,
+  },
+
   uploadedAt: { type: Date, default: Date.now },
   totalChunks: Number,
   chunks: [chunkSchema],

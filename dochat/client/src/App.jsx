@@ -5,6 +5,19 @@ import ChatArea from './components/ChatArea'
 
 const API_URL = import.meta.env.VITE_API_URL
 
+const getOwnerId = () => {
+  let ownerId = localStorage.getItem('docchat-owner-id')
+
+  if (!ownerId) {
+    ownerId = crypto.randomUUID()
+    localStorage.setItem('docchat-owner-id', ownerId)
+  }
+
+  return ownerId
+}
+
+const OWNER_ID = getOwnerId()
+
 export default function App() {
   const [docs, setDocs] = useState([])
   const [activeDoc, setActiveDoc] = useState(null)
@@ -17,7 +30,11 @@ export default function App() {
 
   const fetchDocs = async () => {
     try {
-      const { data } = await axios.get(`${API_URL}/api/upload/list`)
+      const { data } = await axios.get(`${API_URL}/api/upload/list`, {
+        headers: {
+          'x-owner-id': OWNER_ID,
+        },
+      })
 
       setDocs(data)
 
@@ -39,7 +56,12 @@ export default function App() {
     try {
       const { data } = await axios.post(
         `${API_URL}/api/upload`,
-        formData
+        formData,
+        {
+          headers: {
+            'x-owner-id': OWNER_ID,
+          },
+        }
       )
 
       const newDoc = {
@@ -64,10 +86,37 @@ export default function App() {
         height: '100vh',
         display: 'flex',
         flexDirection: 'column',
+        overflow: 'hidden',
       }}
     >
+      <style>{`
+        .app-body {
+          flex: 1;
+          display: flex;
+          overflow: hidden;
+          min-height: 0;
+        }
+
+        @media (max-width: 768px) {
+          .app-body {
+            flex-direction: column;
+            overflow: hidden;
+          }
+
+          .topbar {
+            padding: 0 14px !important;
+          }
+
+          .tech-badge {
+            font-size: 8px !important;
+            padding: 3px 7px !important;
+          }
+        }
+      `}</style>
+
       {/* Topbar */}
       <header
+        className="topbar"
         style={{
           height: 52,
           background: 'var(--paper)',
@@ -107,16 +156,16 @@ export default function App() {
           style={{
             display: 'flex',
             alignItems: 'center',
-            gap: 14,
+            gap: 10,
           }}
         >
           {error && (
             <span
               style={{
-                fontSize: 12,
+                fontSize: 11,
                 color: 'var(--danger)',
                 background: 'var(--danger-bg)',
-                padding: '3px 10px',
+                padding: '3px 8px',
                 borderRadius: 20,
               }}
             >
@@ -125,6 +174,7 @@ export default function App() {
           )}
 
           <span
+            className="tech-badge"
             style={{
               fontFamily: "'DM Mono', monospace",
               fontSize: 10,
@@ -136,6 +186,7 @@ export default function App() {
               display: 'flex',
               alignItems: 'center',
               gap: 5,
+              whiteSpace: 'nowrap',
             }}
           >
             <span
@@ -153,14 +204,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Body */}
-      <div
-        style={{
-          flex: 1,
-          display: 'flex',
-          overflow: 'hidden',
-        }}
-      >
+      {/* Responsive Body */}
+      <div className="app-body">
         <Sidebar
           docs={docs}
           activeDoc={activeDoc}

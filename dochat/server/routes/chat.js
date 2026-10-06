@@ -9,36 +9,76 @@ const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 router.post('/', async (req, res) => {
   try {
     const { documentId, question } = req.body;
+    const ownerId = req.headers['x-owner-id'];
 
-    if (!documentId || !question) {
-      return res.status(400).json({ error: 'documentId and question required' });
+    if (!ownerId) {
+      return res.status(400).json({
+        error: 'Owner ID is required',
+      });
     }
 
-    // Fetch document from MongoDB
-    const doc = await Document.findById(documentId);
-    if (!doc) return res.status(404).json({ error: 'Document not found' });
+    if (!documentId || !question) {
+      return res.status(400).json({
+        error: 'documentId and question required',
+      });
+    }
+
+    // Fetch only a document owned by this browser/user
+    const doc = await Document.findOne({
+      _id: documentId,
+      ownerId,
+    });
+
+    if (!doc) {
+      return res.status(404).json({
+        error: 'Document not found',
+      });
+    }
 
     // RAG: find relevant chunks
-    const relevantChunks = findRelevantChunks(question, doc.chunks, 3);
+    const relevantChunks = findRelevantChunks(
+      question,
+      doc.chunks,
+      3
+    );
+
     const context = relevantChunks.join('\n\n---\n\n');
 
     // Build prompt
-    const systemPrompt = `You are a helpful document assistant. Answer questions strictly based on the provided document context. If the answer is not in the context, say "I couldn't find that in the document." Be concise and precise.`;
+    const systemPrompt = `
+You are a helpful document assistant.
+Answer questions strictly based on the provided document context.
+If the answer is not in the context, say:
+"I couldn't find that in the document."
+Be concise and precise.
+`;
 
-    const userPrompt = `Document context:\n${context}\n\nQuestion: ${question}`;
+    const userPrompt = `
+Document context:
+${context}
 
-    // Call Groq API (free, fast)
+Question:
+${question}
+`;
+
+    // Call Groq API
     const groqRes = await fetch(GROQ_API_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
       },
       body: JSON.stringify({
         model: 'openai/gpt-oss-120b',
         messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
+          {
+            role: 'system',
+            content: systemPrompt,
+          },
+          {
+            role: 'user',
+            content: userPrompt,
+          },
         ],
         temperature: 0.3,
         max_tokens: 512,
@@ -49,10 +89,20 @@ router.post('/', async (req, res) => {
 
     if (!groqRes.ok) {
       console.error('Groq error:', groqData);
-      return res.status(500).json({ error: 'Groq API error', detail: groqData });
+
+      return res.status(500).json({
+        error: 'Groq API error',
+        detail: groqData,
+      });
     }
 
-    const answer = groqData.choices[0].message.content;
+    const answer = groqData.choices?.[0]?.message?.content;
+
+    if (!answer) {
+      return res.status(500).json({
+        error: 'No response generated',
+      });
+    }
 
     res.json({
       answer,
@@ -61,7 +111,10 @@ router.post('/', async (req, res) => {
     });
   } catch (err) {
     console.error('Chat error:', err);
-    res.status(500).json({ error: 'Failed to process question' });
+
+    res.status(500).json({
+      error: 'Failed to process question',
+    });
   }
 });
 
